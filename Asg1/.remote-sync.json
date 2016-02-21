@@ -1,0 +1,12 @@
+{
+    "transport": "scp",
+    "hostname": "10.211.55.44",
+    "port": 22,
+    "username": "hzy",
+    "useAgent": true,
+    "target": "/home/hzy/CSCI3150_Asg1",
+    "ignore": [
+        ".remote-sync.json",
+        "shell"
+    ]
+}
