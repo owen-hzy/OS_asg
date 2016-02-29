@@ -75,7 +75,11 @@ int main(int argc, char* argv[]) {
                             // DOOFFS - reserve some place at front
                             // NOCHECK - put the no-match pattern as it is
                             // MARK - add a slash at directory name
-                            glob(command_array[i], GLOB_APPEND | GLOB_NOCHECK, NULL, &glob_result);
+                            if (i == 0) {
+                                glob(command_array[i], GLOB_NOCHECK, NULL, &glob_result);
+                            } else {
+                                glob(command_array[i], GLOB_APPEND | GLOB_NOCHECK, NULL, &glob_result);
+                            }
                             i++;
                         }
 
