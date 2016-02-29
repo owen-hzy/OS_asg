@@ -11,7 +11,7 @@
 pid_t pid;
 
 void alarm_handler(int signal);
-void FIFO_scheduler(char* line);
+void FIFO_scheduler(char* line, double* previous_cutime, double* previous_cstime);
 
 int main(int argc, char* argv[]) {
     // Check argument
@@ -20,15 +20,21 @@ int main(int argc, char* argv[]) {
         return EINVAL; // Invalid arguments
     }
 
+    // use for reporting
+    double previous_cutime = 0;
+    double previous_cstime = 0;
+    double* p_cut = &previous_cutime;
+    double* p_cst = &previous_cstime;
+
     if (strcmp(argv[1], "FIFO") == 0) {
         FILE *fp;
         if ((fp = fopen(argv[2], "r")) != NULL) {
             char line[512];
             setenv("PATH", "/bin:/usr/bin:.", 1);
-            while (fgets(line, 512, fp) != NULL) {
-                FIFO_scheduler(line);
-            }
 
+            while (fgets(line, 512, fp) != NULL) {
+                FIFO_scheduler(line, p_cut, p_cst);
+            }
             fclose(fp);
             return 0;
         } else {
@@ -58,7 +64,7 @@ int main(int argc, char* argv[]) {
             char *p = malloc(sizeof(char) * 512);
             while (line[i] != NULL && (p = strcpy(p, line[i])) != NULL) {
                 if (! fork()) { // monitor process, child
-                    FIFO_scheduler(p);  //The monitor process is a FIFO scheduler with one job only
+                    FIFO_scheduler(p, p_cut, p_cst);  //The monitor process is a FIFO scheduler with one job only
                     break;
                 } else {
                     i++;
@@ -83,7 +89,7 @@ void alarm_handler(int signal) {
     kill(pid, SIGTERM);
 }
 
-void FIFO_scheduler(char* line) {
+void FIFO_scheduler(char* line, double* previous_cutime, double* previous_cstime) {
     line[strlen(line) - 1] = '\0'; // remove the new-line character
     char *token;
     int i = 0;
@@ -125,7 +131,7 @@ void FIFO_scheduler(char* line) {
         exit(0);
     } else {
         pid_t child_pid;
-        double previous_cutime, previous_cstime, current_cutime, current_cstime;
+        double current_cutime, current_cstime;
         if (time_limit >= 0) {
             signal(SIGALRM, alarm_handler);
             alarm(time_limit);
@@ -139,11 +145,11 @@ void FIFO_scheduler(char* line) {
         current_cutime = timebuf.tms_cutime / ticks_per_sec;
         current_cstime = timebuf.tms_cstime / ticks_per_sec;
         printf("<<Process %d>>\n", child_pid);
-        printf("time elapsed: %f\n", fabs((current_cutime + current_cstime) - (previous_cutime + previous_cstime)));  // fabs since when 0, it will have a minus sign
-        printf("user time   : %f\n", fabs(current_cutime - previous_cutime));
-        printf("system time : %f\n", fabs(current_cstime - previous_cstime));
+        printf("time elapsed: %f\n", fabs((current_cutime + current_cstime) - (*previous_cutime + *previous_cstime)));  // fabs since when 0, it will have a minus sign
+        printf("user time   : %f\n", fabs(current_cutime - *previous_cutime));
+        printf("system time : %f\n", fabs(current_cstime - *previous_cstime));
 
-        previous_cutime += (current_cutime - previous_cutime);
-        previous_cstime += (current_cstime - previous_cstime);
+        *previous_cutime += (current_cutime - *previous_cutime);
+        *previous_cstime += (current_cstime - *previous_cstime);
     }
 }
