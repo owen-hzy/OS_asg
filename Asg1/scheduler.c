@@ -11,6 +11,7 @@
 pid_t pid;
 
 void alarm_handler(int signal);
+void FIFO_scheduler(char* line);
 
 int main(int argc, char* argv[]) {
     // Check argument
@@ -25,60 +26,7 @@ int main(int argc, char* argv[]) {
             char line[512];
             setenv("PATH", "/bin:/usr/bin:.", 1);
             while (fgets(line, 512, fp) != NULL) {
-                line[strlen(line) - 1] = '\0'; // remove the new-line character
-                char *token;
-                int i = 0;
-                // format the command
-                char *command_array[130]; // last will be NULL
-                for (token = strtok(line, " "); token != NULL; token = strtok(NULL, " ")) {
-                    command_array[i++] = token;
-                }
-                int time_limit = atoi(command_array[i - 1]);
-                command_array[i - 1] = NULL;
-                if ((pid = fork()) == 0) {
-                    glob_t glob_result;
-                    int i = 0;
-                    // Expand wildchar
-                    while (command_array[i] != NULL) {
-                        // DOOFFS - reserve some place at front
-                        // NOCHECK - put the no-match pattern as it is
-                        // MARK - add a slash at directory name
-                        glob(command_array[i], GLOB_APPEND | GLOB_NOCHECK, NULL, &glob_result);
-                        i++;
-                    }
-
-                    execvp(command_array[0], glob_result.gl_pathv);
-                    if (errno == 2) {
-                        printf("%s: command not found\n", command_array[0]);
-                        exit(errno);
-                    } else {
-                        printf("%s: unknow error\n", command_array[0]);
-                        exit(errno);
-                    }
-                    exit(0);
-                } else {
-                    pid_t child_pid;
-                    double previous_cutime, previous_cstime, current_cutime, current_cstime;
-                    if (time_limit >= 0) {
-                        signal(SIGALRM, alarm_handler);
-                        alarm(time_limit);
-                    }
-                    child_pid = wait(NULL);
-                    alarm(0);
-
-                    struct tms timebuf;
-                    double ticks_per_sec = (double) sysconf(_SC_CLK_TCK);
-                    times(&timebuf);
-                    current_cutime = timebuf.tms_cutime / ticks_per_sec;
-                    current_cstime = timebuf.tms_cstime / ticks_per_sec;
-                    printf("<<Process %d>>\n", child_pid);
-                    printf("time elapsed: %f\n", fabs((current_cutime + current_cstime) - (previous_cutime + previous_cstime)));  // fabs since when 0, it will have a minus sign
-                    printf("user time   : %f\n", fabs(current_cutime - previous_cutime));
-                    printf("system time : %f\n", fabs(current_cstime - previous_cstime));
-
-                    previous_cutime += (current_cutime - previous_cutime);
-                    previous_cstime += (current_cstime - previous_cstime);
-                }
+                FIFO_scheduler(line);
             }
 
             fclose(fp);
@@ -110,60 +58,7 @@ int main(int argc, char* argv[]) {
             char *p = malloc(sizeof(char) * 512);
             while (line[i] != NULL && (p = strcpy(p, line[i])) != NULL) {
                 if (! fork()) { // monitor process, child
-                    p[strlen(p) - 1] = '\0'; // remove the new-line character
-                    char *token;
-                    int i = 0;
-                    // format the command
-                    char *command_array[130]; // last will be NULL
-                    for (token = strtok(p, " "); token != NULL; token = strtok(NULL, " ")) {
-                        command_array[i++] = token;
-                    }
-                    int time_limit = atoi(command_array[i - 1]);
-                    command_array[i - 1] = NULL;
-                    if ((pid = fork()) == 0) {
-                        glob_t glob_result;
-                        int i = 0;
-                        // Expand wildchar
-                        while (command_array[i] != NULL) {
-                            // DOOFFS - reserve some place at front
-                            // NOCHECK - put the no-match pattern as it is
-                            // MARK - add a slash at directory name
-                            glob(command_array[i], GLOB_APPEND | GLOB_NOCHECK, NULL, &glob_result);
-                            i++;
-                        }
-
-                        execvp(command_array[0], glob_result.gl_pathv);
-                        if (errno == 2) {
-                            printf("%s: command not found\n", command_array[0]);
-                            exit(errno);
-                        } else {
-                            printf("%s: unknow error\n", command_array[0]);
-                            exit(errno);
-                        }
-                        exit(0);
-                    } else {
-                        pid_t child_pid;
-                        double previous_cutime, previous_cstime, current_cutime, current_cstime;
-                        if (time_limit >= 0) {
-                            signal(SIGALRM, alarm_handler);
-                            alarm(time_limit);
-                        }
-                        child_pid = wait(NULL);
-                        alarm(0);
-
-                        struct tms timebuf;
-                        double ticks_per_sec = (double) sysconf(_SC_CLK_TCK);
-                        times(&timebuf);
-                        current_cutime = timebuf.tms_cutime / ticks_per_sec;
-                        current_cstime = timebuf.tms_cstime / ticks_per_sec;
-                        printf("<<Process %d>>\n", child_pid);
-                        printf("time elapsed: %f\n", fabs((current_cutime + current_cstime) - (previous_cutime + previous_cstime)));  // fabs since when 0, it will have a minus sign
-                        printf("user time   : %f\n", fabs(current_cutime - previous_cutime));
-                        printf("system time : %f\n", fabs(current_cstime - previous_cstime));
-
-                        previous_cutime += (current_cutime - previous_cutime);
-                        previous_cstime += (current_cstime - previous_cstime);
-                    }
+                    FIFO_scheduler(p);  //The monitor process is a FIFO scheduler with one job only
                     break;
                 } else {
                     i++;
@@ -186,4 +81,69 @@ int main(int argc, char* argv[]) {
 
 void alarm_handler(int signal) {
     kill(pid, SIGTERM);
+}
+
+void FIFO_scheduler(char* line) {
+    line[strlen(line) - 1] = '\0'; // remove the new-line character
+    char *token;
+    int i = 0;
+    // format the command
+    char *command_array[130]; // last will be NULL
+    for (token = strtok(line, " "); token != NULL; token = strtok(NULL, " ")) {
+        command_array[i++] = token;
+    }
+
+    int time_limit = atoi(command_array[i - 1]);
+    command_array[i - 1] = NULL;
+
+    if ((pid = fork()) == 0) {
+        glob_t glob_result;
+        int i = 0;
+        // Expand wildchar
+        while (command_array[i] != NULL) {
+            // DOOFFS - reserve some place at front
+            // NOCHECK - put the no-match pattern as it is
+            // MARK - add a slash at directory name
+            // First element should be NO_APPEND, otherwise, problem arise
+            if(i == 0) {
+                glob(command_array[i], GLOB_NOCHECK, NULL, &glob_result);
+            }
+            else {
+                glob(command_array[i], GLOB_APPEND | GLOB_NOCHECK, NULL, &glob_result);
+            }
+            i++;
+        }
+
+        execvp(command_array[0], glob_result.gl_pathv);
+        if (errno == 2) {
+            printf("%s: command not found\n", command_array[0]);
+            exit(errno);
+        } else {
+            printf("%s: unknow error\n", command_array[0]);
+            exit(errno);
+        }
+        exit(0);
+    } else {
+        pid_t child_pid;
+        double previous_cutime, previous_cstime, current_cutime, current_cstime;
+        if (time_limit >= 0) {
+            signal(SIGALRM, alarm_handler);
+            alarm(time_limit);
+        }
+        child_pid = wait(NULL);
+        alarm(0);
+
+        struct tms timebuf;
+        double ticks_per_sec = (double) sysconf(_SC_CLK_TCK);
+        times(&timebuf);
+        current_cutime = timebuf.tms_cutime / ticks_per_sec;
+        current_cstime = timebuf.tms_cstime / ticks_per_sec;
+        printf("<<Process %d>>\n", child_pid);
+        printf("time elapsed: %f\n", fabs((current_cutime + current_cstime) - (previous_cutime + previous_cstime)));  // fabs since when 0, it will have a minus sign
+        printf("user time   : %f\n", fabs(current_cutime - previous_cutime));
+        printf("system time : %f\n", fabs(current_cstime - previous_cstime));
+
+        previous_cutime += (current_cutime - previous_cutime);
+        previous_cstime += (current_cstime - previous_cstime);
+    }
 }
