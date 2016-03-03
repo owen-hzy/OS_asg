@@ -7,6 +7,9 @@
     "target": "/home/hzy/CSCI3150_Asg1",
     "ignore": [
         ".remote-sync.json",
-        "shell"
+        "shell",
+        "Deliverable*",
+        "README.md",
+        "*.o"
     ]
 }

@@ -6,6 +6,7 @@
 #include <errno.h> // Needed by errno
 #include <string.h> // Needed by strtok()
 #include <glob.h>
+#include <sys/wait.h>
 
 #define MAX_INPUT_COMMAND_LINE 257 //one for new-line, one for NULL-terminated character
 
@@ -63,10 +64,10 @@ int main(int argc, char* argv[]) {
 
                     // Command
                     if (! fork()) {
+                        signal(SIGTSTP, SIG_DFL);
                         signal(SIGINT, SIG_DFL);
                         signal(SIGTERM, SIG_DFL);
                         signal(SIGQUIT, SIG_DFL);
-                        signal(SIGTSTP, SIG_DFL);
                         //child
                         // Expand the argument list
                         int i = 0;
