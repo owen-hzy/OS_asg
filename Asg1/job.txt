@@ -1,3 +1,5 @@
-ls -al s* w*  10
-while1  5
+cat job.txt    -1
+cat    3
+cat 3
 while1  3
+while1  4

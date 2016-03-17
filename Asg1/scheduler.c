@@ -6,12 +6,13 @@
 #include <signal.h>
 #include <glob.h>
 #include <sys/times.h>
+#include <sys/wait.h>
 #include <math.h>
 
 pid_t pid;
 
 void alarm_handler(int signal);
-void FIFO_scheduler(char* line, double* previous_cutime, double* previous_cstime);
+void FIFO_scheduler(char* line, double* previous_cutime, double* previous_cstime, clock_t start_time);
 
 int main(int argc, char* argv[]) {
     // Check argument
@@ -33,7 +34,9 @@ int main(int argc, char* argv[]) {
             setenv("PATH", "/bin:/usr/bin:.", 1);
 
             while (fgets(line, 512, fp) != NULL) {
-                FIFO_scheduler(line, p_cut, p_cst);
+                struct tms timebuf;
+                clock_t start_time = times(&timebuf);
+                FIFO_scheduler(line, p_cut, p_cst, start_time);
             }
             fclose(fp);
             return 0;
@@ -62,9 +65,11 @@ int main(int argc, char* argv[]) {
             i = 0;
             pid_t main_pid = getpid();
             char *p = malloc(sizeof(char) * 512);
+            struct tms timebuf;
+            clock_t start_time = times(&timebuf);
             while (line[i] != NULL && (p = strcpy(p, line[i])) != NULL) {
                 if (! fork()) { // monitor process, child
-                    FIFO_scheduler(p, p_cut, p_cst);  //The monitor process is a FIFO scheduler with one job only
+                    FIFO_scheduler(p, p_cut, p_cst, start_time);  //The monitor process is a FIFO scheduler with one job only
                     break;
                 } else {
                     i++;
@@ -83,13 +88,14 @@ int main(int argc, char* argv[]) {
             exit(errno);
         }
     }
+    return 0;
 }
 
 void alarm_handler(int signal) {
     kill(pid, SIGTERM);
 }
 
-void FIFO_scheduler(char* line, double* previous_cutime, double* previous_cstime) {
+void FIFO_scheduler(char* line, double* previous_cutime, double* previous_cstime, clock_t start_time) {
     line[strlen(line) - 1] = '\0'; // remove the new-line character
     char *token;
     int i = 0;
@@ -141,11 +147,11 @@ void FIFO_scheduler(char* line, double* previous_cutime, double* previous_cstime
 
         struct tms timebuf;
         double ticks_per_sec = (double) sysconf(_SC_CLK_TCK);
-        times(&timebuf);
+        clock_t end_time = times(&timebuf);
         current_cutime = timebuf.tms_cutime / ticks_per_sec;
         current_cstime = timebuf.tms_cstime / ticks_per_sec;
         printf("<<Process %d>>\n", child_pid);
-        printf("time elapsed: %f\n", fabs((current_cutime + current_cstime) - (*previous_cutime + *previous_cstime)));  // fabs since when 0, it will have a minus sign
+        printf("time elapsed: %f\n", (end_time - start_time) / ticks_per_sec);  // fabs since when 0, it will have a minus sign
         printf("user time   : %f\n", fabs(current_cutime - *previous_cutime));
         printf("system time : %f\n", fabs(current_cstime - *previous_cstime));
 

@@ -2,11 +2,11 @@ CC = gcc
 CFLAGS = -Wall
 
 
-shell : shell.o
+scheduler : scheduler.o
 	${CC} ${CFLAGS} $? -o $@
 
-shell.o: shell.c
-	${CC} ${CFLAGS} -c $? 
+scheduler.o: scheduler.c
+	${CC} ${CFLAGS} -c $?
 
 clean:
-	rm -f shell shell.o
+	rm -f scheduler scheduler.o
