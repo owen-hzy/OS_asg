@@ -261,11 +261,9 @@ void Cleanse(char *device, char *delete_file) {
 					// check if occupied or not
 					if (fat == 0) {
 						fseek(fp, (long) (rootDirectory_offset + ((((uint32_t) dir_entry.DIR_FstClusHI << 16) | dir_entry.DIR_FstClusLO) - 2) * boot_entry.BPB_SecPerClus * boot_entry.BPB_BytesPerSec), SEEK_SET);
-						uint32_t size = boot_entry.BPB_SecPerClus * boot_entry.BPB_BytesPerSec;
-						uint32_t p = 0;
-						for (p = 0; p < size; p++) {
-							fwrite("0", 1, 1, fp);
-						}
+						char *buffer = (char *) malloc(dir_entry.DIR_FileSize);
+						memset(buffer, 0, dir_entry.DIR_FileSize);
+						fwrite(buffer, dir_entry.DIR_FileSize, 1, fp);
 						printf("%s: cleansed\n", delete_file);
 					} else {
 						cleanse_eligible = 0;
