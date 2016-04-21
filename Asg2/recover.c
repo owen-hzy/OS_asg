@@ -108,7 +108,7 @@ void PrintRootDirectory(char *device) {
 				filename[j] = '\0';
 			}
 			
-			printf("%d, %s, %u, %u\n", i, filename, dir_entry.DIR_FileSize, ((uint32_t) dir_entry.DIR_FstClusHI << 8) | dir_entry.DIR_FstClusLO);
+			printf("%d, %s, %u, %u\n", i, filename, dir_entry.DIR_FileSize, ((uint32_t) dir_entry.DIR_FstClusHI << 16) | dir_entry.DIR_FstClusLO);
 		}
 		// find next fat
 		fseek(fp, (long) fat_offset + 4 * cluster_id, SEEK_SET);
@@ -167,13 +167,13 @@ void Recover(char *device, char *recover_file, char *output_file) {
 
 			if (found == 1) {
 				uint32_t fat = 0;
-				fseek(fp, (long) fat_offset + 4 * (((uint32_t) dir_entry.DIR_FstClusHI << 8) | dir_entry.DIR_FstClusLO), SEEK_SET);
+				fseek(fp, (long) fat_offset + 4 * (((uint32_t) dir_entry.DIR_FstClusHI << 16) | dir_entry.DIR_FstClusLO), SEEK_SET);
 				fread(&fat, 1, sizeof(int), fp);
 				// check if occupied or not
-				if (fat == 0) {
+				if (fat == 0 || dir_entry.DIR_FileSize == (uint32_t) 0) {
 					FILE *of = fopen(output_file, "w");
 					if (of != NULL) {
-						fseek(fp, (long) (rootDirectory_offset + ((((uint32_t) dir_entry.DIR_FstClusHI << 8) | dir_entry.DIR_FstClusLO) - 2) * boot_entry.BPB_SecPerClus * boot_entry.BPB_BytesPerSec), SEEK_SET);
+						fseek(fp, (long) (rootDirectory_offset + ((((uint32_t) dir_entry.DIR_FstClusHI << 16) | dir_entry.DIR_FstClusLO) - 2) * boot_entry.BPB_SecPerClus * boot_entry.BPB_BytesPerSec), SEEK_SET);
 						char buffer;
 						uint32_t size = dir_entry.DIR_FileSize > ((uint32_t) boot_entry.BPB_SecPerClus * boot_entry.BPB_BytesPerSec) ? ((uint32_t) boot_entry.BPB_SecPerClus * boot_entry.BPB_BytesPerSec) : dir_entry.DIR_FileSize;
 						uint32_t p = 0;
@@ -256,11 +256,11 @@ void Cleanse(char *device, char *delete_file) {
 				uint8_t cleanse_eligible = 1;
 				if (dir_entry.DIR_FileSize != 0) {
 					uint32_t fat = 0;
-					fseek(fp, (long) fat_offset + 4 * (((uint32_t) dir_entry.DIR_FstClusHI << 8) | dir_entry.DIR_FstClusLO), SEEK_SET);
+					fseek(fp, (long) fat_offset + 4 * (((uint32_t) dir_entry.DIR_FstClusHI << 16) | dir_entry.DIR_FstClusLO), SEEK_SET);
 					fread(&fat, 1, sizeof(int), fp);
 					// check if occupied or not
 					if (fat == 0) {
-						fseek(fp, (long) (rootDirectory_offset + ((((uint32_t) dir_entry.DIR_FstClusHI << 8) | dir_entry.DIR_FstClusLO) - 2) * boot_entry.BPB_SecPerClus * boot_entry.BPB_BytesPerSec), SEEK_SET);
+						fseek(fp, (long) (rootDirectory_offset + ((((uint32_t) dir_entry.DIR_FstClusHI << 16) | dir_entry.DIR_FstClusLO) - 2) * boot_entry.BPB_SecPerClus * boot_entry.BPB_BytesPerSec), SEEK_SET);
 						uint32_t size = boot_entry.BPB_SecPerClus * boot_entry.BPB_BytesPerSec;
 						uint32_t p = 0;
 						for (p = 0; p < size; p++) {
